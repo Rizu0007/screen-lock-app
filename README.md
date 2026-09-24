@@ -61,6 +61,8 @@ npm run dev              # http://localhost:3000
 
 ## How it works
 
+![Screen lock architecture](docs/architecture.svg)
+
 ```
 anonymous ──login──▶ active ──lock──▶ locked ──correct PIN──▶ active
                        │                 │
