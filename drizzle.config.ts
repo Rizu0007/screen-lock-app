@@ -1,4 +1,5 @@
 import { defineConfig } from "drizzle-kit";
+import { normalizeDatabaseUrl } from "./src/db/connection-url";
 
 try {
   process.loadEnvFile(".env");
@@ -12,6 +13,6 @@ export default defineConfig({
   dialect: "postgresql",
   // Migrations use a direct connection when available (Neon's Vercel
   // integration provides DATABASE_URL_UNPOOLED); the app uses the pooled URL.
-  dbCredentials: { url: (process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL)! },
+  dbCredentials: { url: normalizeDatabaseUrl((process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL)!) },
   strict: true,
 });

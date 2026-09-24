@@ -46,3 +46,13 @@ describe("signedOutMessage", () => {
     expect(signedOutMessage(["pin_lockout"])).toBeNull();
   });
 });
+
+describe("normalizeDatabaseUrl", () => {
+  it("drops libpq-only options but keeps sslmode", async () => {
+    const { normalizeDatabaseUrl } = await import("@/db/connection-url");
+    const out = normalizeDatabaseUrl(
+      "postgresql://u:p@ep-x-pooler.eu.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
+    );
+    expect(out).toBe("postgresql://u:p@ep-x-pooler.eu.aws.neon.tech/neondb?sslmode=require");
+  });
+});

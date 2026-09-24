@@ -2,6 +2,7 @@ import "server-only";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { env } from "@/server/env";
+import { normalizeDatabaseUrl } from "./connection-url";
 import * as schema from "./schema";
 
 export type Database = PostgresJsDatabase<typeof schema>;
@@ -11,7 +12,7 @@ const globalForDb = globalThis as unknown as { __db?: Database; __sql?: postgres
 
 function create(): Database {
   const config = env();
-  const client = postgres(config.DATABASE_URL, {
+  const client = postgres(normalizeDatabaseUrl(config.DATABASE_URL), {
     // Serverless platforms run many small instances; each gets a small pool and
     // the provider's pooler (e.g. Neon's "-pooler" host) fans them in.
     max: config.DATABASE_POOL_MAX ?? (process.env.VERCEL ? 5 : 10),
