@@ -45,3 +45,7 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# AI-agent rule files auto-written by `next dev` when run by a coding agent
+/AGENTS.md
+/CLAUDE.md
