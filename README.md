@@ -1,197 +1,172 @@
 # Screen Lock & Session Management
 
-A Next.js 16 application where an authenticated user can lock the app from any page, unlock it with a pre-configured 6-digit PIN, and is signed out after three consecutive incorrect PINs.
+A Next.js 16 app where a signed-in user can lock the screen from any page and unlock it with a 6-digit PIN. Three wrong PINs sign the user out.
 
-The lock is enforced **on the server**. While a session is locked, no protected page, Server Action or API response is produced for it, so refreshing, using the back button, typing a URL or calling the API directly cannot get past it.
+The lock is enforced **on the server**, so refresh, the back button, a typed URL or a direct API call cannot bypass it.
 
-- **Stack:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, PostgreSQL 17, Drizzle ORM, Argon2id, Zod, Vitest, Playwright
+**Stack:** Next.js 16 · React 19 · TypeScript · Tailwind 4 · PostgreSQL 17 · Drizzle ORM · Argon2id · Zod · Vitest · Playwright
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Demo accounts](#demo-accounts)
+- [Try it](#try-it)
+- [How it works](#how-it-works)
+- [Requirements coverage](#requirements-coverage)
+- [Security](#security)
+- [Design decisions](#design-decisions)
+- [Testing](#testing)
+- [Deploy to Vercel](#deploy-to-vercel)
+- [Project structure](#project-structure)
+- [Limitations](#limitations)
 
 ---
 
 ## Quick start
 
-Requirements: Node 22+, Docker.
+Requires Node 22+ and Docker.
 
 ```bash
-cp .env.example .env
-# set AUTH_PEPPER to a random value:
-#   openssl rand -base64 48
+cp .env.example .env     # set AUTH_PEPPER: openssl rand -base64 48
 npm install
-npm run setup        # start Postgres (port 5434), run migrations, seed demo users
-npm run dev          # http://localhost:3000
+npm run setup            # Postgres (port 5434) + migrations + demo users
+npm run dev              # http://localhost:3000
 ```
 
-### Demo accounts
+| Script | Purpose |
+|---|---|
+| `npm run setup` | Start the database, migrate, seed |
+| `npm run db:seed` | Reset demo accounts (credentials, PIN counter, sessions) |
+| `npm test` | Unit and integration tests |
+| `npm run test:e2e` | End-to-end tests (production build) |
+| `npm run typecheck` / `npm run lint` | Static checks |
+
+## Demo accounts
 
 | Email | Password | PIN |
 |---|---|---|
 | `demo@example.com` | `Demo-Password-1` | `246810` |
 | `alex@example.com` | `Alex-Password-1` | `135790` |
 
-Running `npm run db:seed` again resets these accounts: credentials, PIN counter, sessions and login throttle.
-
-### Try it
+## Try it
 
 1. Sign in and open **Projects → page 2**.
-2. Press **Lock** in the header (or `Ctrl`+`Shift`+`L`).
-3. On the lock screen, try refreshing, pressing Back, or opening `/dashboard` directly: you always land back on the lock screen.
-4. Enter the PIN and you are returned to *Projects, page 2* without re-entering your password.
-5. Lock again and enter a wrong PIN three times: every session of that user is ended and you are sent to the login page.
-6. **Settings → Recent security activity** shows the audit trail.
-
----
-
-## Scripts
-
-| Script | Purpose |
-|---|---|
-| `npm run dev` | Development server |
-| `npm run setup` | `db:up` + `db:migrate` + `db:seed` |
-| `npm run db:up` | Start Postgres with Docker Compose and wait until healthy |
-| `npm run db:generate` | Generate a migration after changing `src/db/schema.ts` |
-| `npm run db:migrate` | Apply migrations |
-| `npm run db:seed` | Create or reset the demo accounts |
-| `npm test` | Unit and integration tests (Vitest; needs the database) |
-| `npm run test:e2e` | End-to-end tests (Playwright, against a production build) |
-| `npm run typecheck` / `npm run lint` | Static checks |
+2. Click **Lock** (or press `Ctrl`+`Shift`+`L`).
+3. Try refreshing, pressing Back, or opening `/dashboard`: you stay on the lock screen.
+4. Enter the PIN and you return to *Projects, page 2* without a password.
+5. Enter a wrong PIN 3 times and every session of that user ends.
+6. See the audit trail in **Settings → Recent security activity**.
 
 ---
 
 ## How it works
-
-### Session state machine
 
 ```
 anonymous ──login──▶ active ──lock──▶ locked ──correct PIN──▶ active
                        │                 │
                      logout     3rd wrong PIN / sign out
                        ▼                 ▼
-                   anonymous (session row deleted)
+                   anonymous (session deleted)
 ```
 
-Authentication and screen lock are kept **separate in the schema**:
+**Data model.** Lock state is kept separate from authentication:
 
-| Table | Purpose |
+| Table | Holds |
 |---|---|
-| `users` | Identity and Argon2id password hash |
-| `pin_credentials` | Argon2id PIN hash and the **per-user** `failed_attempts` counter |
-| `sessions` | Authenticated sessions. The cookie holds a random 256-bit token and only its SHA-256 is stored. 24h absolute expiry. |
-| `screen_locks` | One row means "this session is locked". It stores `locked_at` and `return_to`, and is deleted with the session (cascade). |
-| `auth_events` | Audit trail: login, logout, lock, unlock, failed PIN, lockout |
-| `login_attempts` | Fixed-window login throttle per (email, IP) |
+| `users` | Email, Argon2id password hash |
+| `pin_credentials` | Argon2id PIN hash, **per-user** failed-attempt counter |
+| `sessions` | SHA-256 of the cookie token, 24h expiry |
+| `screen_locks` | A row means the session is locked (`return_to`, `locked_at`) |
+| `auth_events` | Audit trail |
+| `login_attempts` | Login throttle per email + IP |
 
-### Where the lock is enforced
+**Enforcement layers:**
 
-| Layer | Role |
-|---|---|
-| `src/server/dal.ts` | **The security boundary.** `getAuthState()` resolves the cookie to `anonymous`, `locked` or `active` (memoised per request). `requireActiveSession()` / `requireLockedSession()` are called by every page, Server Action and Route Handler. |
-| `src/proxy.ts` | An optimistic, cookie-only pre-check with no database access. It redirects visitors without a cookie to `/login` and marks responses `no-store`. It is deliberately **not** relied on: Server Actions and RSC requests pass through to the DAL. |
-| `src/app/(app)/layout.tsx` | App shell with the Lock button. Layouts are not re-rendered on client navigation, so each page calls the guard itself. |
-| `src/components/session-guard.tsx` | Client companion that never grants access. It moves a tab away from protected content when the session changes elsewhere (BroadcastChannel hint, then a server re-check), on focus, and when the page is restored from the back/forward cache. |
+- **`src/server/dal.ts` is the security boundary.** Every page, Server Action and API route calls `requireActiveSession()` or `requireLockedSession()`.
+- **`src/proxy.ts` is only an optimistic pre-check.** It sends visitors with no cookie to `/login` and sets `no-store`. It is not trusted for security.
+- **`session-guard.tsx`** runs in the browser. It moves open tabs off protected pages when the session changes elsewhere (BroadcastChannel, focus re-check, back/forward cache reload).
 
-### Lock → unlock flow
+**Unlock** runs in one database transaction:
 
-1. **Lock** (`lockAction`): the browser sends `pathname + search + hash`. The server validates it as a same-origin, in-app path (`src/lib/return-to.ts`) and inserts a `screen_locks` row. The client covers the screen at once, notifies other tabs, and does a **hard** navigation to `/lock`, which also discards Next's client router cache.
-2. **Lock screen** (`/lock`): one masked numeric input (`type="password"`, `inputMode="numeric"`). Non-digits are stripped as you type, and Unlock stays disabled until 6 digits are entered. The server validates again with `^[0-9]{6}$`.
-3. **Unlock** (`attemptUnlock` in `src/server/lock/service.ts`), in a single transaction:
-   - `SELECT … FOR UPDATE` on the user's `pin_credentials` row, which serialises all attempts for that user
-   - re-check that the session still exists and is still locked
-   - verify the PIN with Argon2id
-   - **correct:** counter reset to 0, lock removed, session token rotated, server redirect to `return_to`
-   - **wrong (1st and 2nd):** counter +1, "N attempts remaining"
-   - **wrong (3rd):** all of the user's sessions deleted, counter reset, cookie cleared, redirect to `/login?reason=pin_lockout`
+1. `SELECT … FOR UPDATE` locks the user's PIN row, so parallel attempts run one at a time.
+2. It re-checks that the session still exists and is still locked, then verifies the PIN.
+3. The outcome is one of:
+   - **Correct:** counter reset, lock removed, token rotated, redirect to the saved page.
+   - **Wrong:** counter +1 and "N attempts remaining".
+   - **3rd wrong:** all of the user's sessions deleted, redirect to `/login?reason=pin_lockout`.
 
 ---
 
-## Requirement traceability
+## Requirements coverage
 
-| Requirement | Implementation | Test |
+| Req | Implementation | Tested in |
 |---|---|---|
-| A1 Lock from any page | Header button + `Ctrl+Shift+L` in the shared app layout | `e2e`: lock from 4 pages, and the shortcut |
-| A2 Dedicated lock screen | Separate `/lock` route, not an overlay; no app data is rendered | `e2e`: no app navigation or content on `/lock` |
-| A3 Single numeric input | One `<input inputMode="numeric">` | `e2e`: exactly one `input` on the page |
-| A4 Exactly 6 digits | Client stripping plus `maxLength`; server-side Zod `^[0-9]{6}$` | `unit`: 12 invalid inputs; `e2e`: typing letters |
-| A5 Validate against configured PIN | Argon2id + pepper, compared on the server only | `integration` |
-| A6 Return to previous page | `return_to` stored server-side, validated on write and on read, with query and hash | `e2e`: `/projects?page=3#top` |
-| A7 No full re-authentication | Unlock removes the lock row and keeps the session | `e2e`, `integration` |
-| B1 Track failed attempts (per user) | `pin_credentials.failed_attempts`; survives refresh; shared by all of the user's sessions | `e2e`: refresh, multi-device; `integration` |
-| B2 3 wrong → invalidate, log out, redirect | All sessions deleted, cookie cleared, redirect to `/login?reason=pin_lockout` | `e2e`, `integration` |
-| B3 Correct PIN resets the counter | Reset to 0 on success (and on password login) | `e2e`: correct PIN on the 3rd attempt, then counter back to full |
-| B4 Standard login required afterwards | No session row means every route redirects to `/login` | `e2e`: replaying the old cookie is rejected |
+| A1 Lock from any page | Header button + `Ctrl+Shift+L` | e2e |
+| A2 Dedicated lock screen | Separate `/lock` route; no app data rendered | e2e |
+| A3 Single numeric input | One `<input inputMode="numeric">` | e2e |
+| A4 Exactly 6 digits | Client filtering + server `^[0-9]{6}$` | unit, e2e |
+| A5 Validate PIN | Argon2id + pepper, server only | integration |
+| A6 Return to previous page | `return_to` incl. query and hash, validated | e2e |
+| A7 No full re-login | Unlock keeps the session | e2e, integration |
+| B1 Track failures | Per-user counter; survives refresh | e2e, integration |
+| B2 3 wrong → logout | All sessions deleted, redirect to login | e2e, integration |
+| B3 Correct PIN resets | Counter reset to 0 | e2e, integration |
+| B4 Login required after | Old cookie rejected | e2e |
 
 ---
 
-## Security notes
+## Security
 
-### Threat model
+| Attack | Mitigation |
+|---|---|
+| Refresh, direct URL, `/login` while locked | Lock stored in the database; every page checks it |
+| Delete the lock overlay in DevTools | No overlay: locked sessions never receive protected content |
+| Call the API while locked | `423 Locked` `{"code":"SCREEN_LOCKED"}` |
+| Proxy/middleware bypass | Proxy is not the boundary; the DAL runs everywhere |
+| Back button / cached pages | `no-store`, hard navigation to `/lock`, `pageshow` reload |
+| Other open tabs | BroadcastChannel + server re-check |
+| Parallel guesses beyond 3 | `FOR UPDATE` serialises attempts (tested with 8 parallel requests) |
+| Extra guesses from another device | Counter is per user; lockout ends every session |
+| Stolen or old cookie | Tokens hashed, rotated on unlock, deleted on lockout |
+| Open redirect via return path | Only in-app paths; `//`, `\`, control chars, encoded tricks rejected |
+| Database leak exposes PINs | Argon2id with a server-side pepper (`AUTH_PEPPER`) |
+| Account enumeration by timing | Unknown emails still run a full hash check |
+| Password brute force | 5 attempts / 15 min per email + IP |
+| CSRF, clickjacking | POST-only Server Actions, `SameSite=Lax`, `frame-ancestors 'none'` |
 
-| Attack | Mitigation | Proof |
-|---|---|---|
-| Refresh or type a URL while locked | Lock state lives in the database; every page runs the DAL guard | `e2e` bypass tests |
-| Remove the lock overlay in DevTools | There is no overlay: locked sessions never receive protected HTML or data | `e2e` |
-| Call the data API while locked | Route handlers return `423 Locked` (`{"code":"SCREEN_LOCKED"}`) | `e2e` |
-| Bypass the proxy / middleware (e.g. CVE-2025-29927) | The proxy is not the security boundary; the DAL runs in every page, action and handler | Design |
-| Back button or bfcache shows the previous page | `Cache-Control: no-store`, hard navigation to `/lock`, `pageshow` reload | `e2e` |
-| Other tabs keep showing content | BroadcastChannel hint, then server re-check; re-check on focus | `e2e` multi-tab |
-| More than 3 guesses via parallel requests | Row lock (`FOR UPDATE`) serialises attempts per user | `integration`: 8 parallel wrong PINs give exactly 2 invalid + 1 lockout |
-| Correct PIN racing the lockout revives the session | Unlock re-checks the session under the row lock | `integration` |
-| Extra guesses from a second device or session | The counter is per user; lockout ends every session | `e2e`, `integration` |
-| Replay a stolen or old cookie | Tokens are stored hashed, rotated on unlock and deleted on lockout/logout | `e2e`, `integration` |
-| Open redirect via the return path | Only same-origin in-app paths; control characters, `\`, `//`, encoded variants, `/lock`, `/login` and `/api` rejected | `unit`: 17 payloads |
-| Offline PIN cracking after a database leak (10⁶ PINs) | Argon2id (19 MiB, t=2) keyed with a server-side pepper (`AUTH_PEPPER`), hash versioned for rotation | `integration` |
-| User enumeration via login timing | Unknown emails still run a full Argon2 verification; one generic error | Design |
-| Password brute force | 5 attempts per 15 minutes per (email, IP), counted atomically before verification | `integration` |
-| Forged sign-out, lock or unlock from another site | Server Actions are POST-only with an Origin check, and the cookie is `SameSite=Lax` | Design |
-| Clickjacking the lock screen | `X-Frame-Options: DENY`, `frame-ancestors 'none'` | Headers |
-| Session fixation | Login always issues a new session and deletes the one presented | Design |
-| Text injection via `?reason=` | Only allow-listed codes, mapped to fixed messages | `unit` |
+Cookie: `HttpOnly`, `SameSite=Lax`, and in production `Secure` + `__Host-` prefix.
 
-The session cookie is `HttpOnly`, `SameSite=Lax`, and in production `Secure` with the `__Host-` prefix.
+---
 
-### Design decisions
+## Design decisions
 
-- **The failed-attempt counter is per user, not per session.** The brief says "for the current user". Per-session counting would give an attacker 3 guesses per device.
-- **Lockout ends all of the user's sessions,** so that no other session of the same user stays usable after a PIN brute-force attempt.
-- **Malformed input does not consume an attempt.** Only a well-formed 6-digit PIN that fails verification counts as an "incorrect PIN".
-- **Unlock, lockout and sign-out redirect from the server.** A Server Action that changes cookies makes Next re-render the current route, and that re-render would race any client-side navigation.
-- **The token is rotated on unlock, not on lock.** Rotation on unlock invalidates any copy of the cookie taken earlier. Rotating on lock would trigger the same re-render race, and the lock row already blocks the session.
-- **Status 423 Locked** for data requests from a locked session is distinct from `401` (no session), so API clients can tell the two apart.
-- **Demo users instead of registration.** The brief says the PIN is "pre-configured". Registration would add attack surface without meeting any requirement.
-
-### Known limitations
-
-- `x-forwarded-for` is trusted for throttling and audit IPs. That is correct behind Vercel or a reverse proxy that overwrites it, but not on a bare server.
-- Unsaved form input on the page is lost when locking, because of the hard navigation.
-- If both the database **and** `AUTH_PEPPER` leak, a 6-digit PIN space is small enough to brute-force offline. This is inherent to 6-digit PINs.
-- Changing the PIN, and idle auto-lock, are out of scope. Both are straightforward extensions (`pin_credentials`; a timer calling `lockAction`).
+- **Counter per user, not per session:** the brief says "current user". Counting per session would give 3 guesses per device.
+- **Lockout ends all of the user's sessions,** so no other session of that user stays open after a brute-force attempt.
+- **Malformed input is not counted.** Only a real 6-digit PIN that fails counts as an attempt.
+- **Server-side redirects for unlock, lockout and sign-out.** Changing cookies in a Server Action re-renders the page, which would race client navigation.
+- **Token rotated on unlock, not on lock.** That invalidates earlier cookie copies without the re-render race.
+- **423 vs 401** lets API clients tell "locked" apart from "not signed in".
+- **Seeded users, no registration:** the PIN is "pre-configured" per the brief.
 
 ---
 
 ## Testing
 
 ```bash
-npm test            # 52 unit + integration tests (real Postgres: row locks, cascades, races)
-npm run test:e2e    # 17 Playwright tests against `next build && next start`
+npm test            # 52 unit + integration tests on real Postgres (races, cascades, expiry)
+npm run test:e2e    # 17 Playwright tests on a production build
 ```
-
-The integration tests create throwaway users and clean them up. The e2e tests reseed the demo accounts before running.
 
 ---
 
-## Deploying to Vercel (with Neon)
+## Deploy to Vercel
 
-1. Import the repository in Vercel.
-2. **Storage → Create → Neon (Postgres)** and connect it to the project. This adds `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`.
+1. Import the repo in Vercel.
+2. **Storage → Neon** → connect. This adds `DATABASE_URL` automatically.
 3. Add environment variables:
-
-   | Name | Value |
-   |---|---|
-   | `AUTH_PEPPER` | output of `openssl rand -base64 48`. Use a new value per environment, and **never change it** once users exist. |
-   | `SEED_DEMO_ACCOUNTS` | `true` for a demo/assessment deployment only |
-
-4. Deploy. The `vercel-build` script runs the migrations, seeds the demo accounts (only when `SEED_DEMO_ACCOUNTS=true`) and builds.
-
-With `SEED_DEMO_ACCOUNTS=true` the demo credentials are **shown on the login page**. That is intended for an assessment demo; do not enable it for real users.
+   - `AUTH_PEPPER`: a new value from `openssl rand -base64 48`. Never change it once users exist.
+   - `SEED_DEMO_ACCOUNTS`: `true`. This seeds the demo users and shows their logins on the login page. Use it for demos only.
+4. Deploy. The `vercel-build` script migrates, seeds (if enabled) and builds.
 
 ---
 
@@ -199,19 +174,27 @@ With `SEED_DEMO_ACCOUNTS=true` the demo credentials are **shown on the login pag
 
 ```
 src/
-  app/
-    (app)/            protected pages: dashboard, projects, projects/[id], settings
-    actions/          Server Actions: login, logout, lock, unlock
-    api/              session status probe, example data API (423 when locked)
-    lock/             lock screen, PIN form, cross-tab guard
-    login/            login page and form
-  components/         lock button, sign-out, session guard, UI primitives
-  db/                 Drizzle schema and client
-  lib/                shared validation, return-path sanitiser, cross-tab channel
-  server/             server-only code: DAL, sessions, hashing, lock service, audit, throttle
-  proxy.ts            optimistic cookie pre-check + no-store
-drizzle/              SQL migrations
-scripts/seed.ts       demo accounts
-tests/                Vitest unit + integration tests
-e2e/                  Playwright tests
+  app/(app)/     protected pages (dashboard, projects, settings)
+  app/actions/   Server Actions: login, logout, lock, unlock
+  app/api/       session status, example data API
+  app/lock/      lock screen
+  app/login/     login page
+  components/    lock button, session guard, UI
+  db/            schema + client
+  lib/           validation, return-path sanitiser, cross-tab channel
+  server/        DAL, sessions, hashing, lock service, audit, throttle
+  proxy.ts       optimistic pre-check
+drizzle/         migrations
+scripts/seed.ts  demo accounts
+tests/           unit + integration
+e2e/             Playwright
 ```
+
+---
+
+## Limitations
+
+- `x-forwarded-for` is trusted for throttling. That is fine behind Vercel or another proxy, but not on a bare server.
+- Unsaved form input is lost when locking.
+- If the database **and** the pepper both leak, 6-digit PINs can be brute-forced offline.
+- Changing the PIN and idle auto-lock are out of scope, but easy to add.
