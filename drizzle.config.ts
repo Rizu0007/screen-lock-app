@@ -10,6 +10,8 @@ export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dialect: "postgresql",
-  dbCredentials: { url: process.env.DATABASE_URL! },
+  // Migrations use a direct connection when available (Neon's Vercel
+  // integration provides DATABASE_URL_UNPOOLED); the app uses the pooled URL.
+  dbCredentials: { url: (process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL)! },
   strict: true,
 });

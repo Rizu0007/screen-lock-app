@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { DEMO_USERS } from "@/lib/demo-users";
 import { signedOutMessage } from "@/lib/login-reasons";
 import { getAuthState } from "@/server/dal";
+import { demoAccountsVisible } from "@/server/env";
 import { LoginForm } from "./login-form";
 import { SignedOutBeacon } from "./signed-out-beacon";
 
@@ -21,7 +22,7 @@ export default async function LoginPage({
 
   const { reason } = await searchParams;
   const notice = signedOutMessage(reason);
-  const showDemo = process.env.NODE_ENV !== "production";
+  const showDemo = demoAccountsVisible();
 
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-12">
@@ -43,7 +44,7 @@ export default async function LoginPage({
 
         {showDemo && (
           <Card className="p-4 text-xs text-zinc-600 dark:text-zinc-400">
-            <p className="font-medium text-zinc-800 dark:text-zinc-200">Demo accounts (dev only)</p>
+            <p className="font-medium text-zinc-800 dark:text-zinc-200">Demo accounts</p>
             <ul className="mt-2 space-y-1 font-mono">
               {DEMO_USERS.map((u) => (
                 <li key={u.email}>

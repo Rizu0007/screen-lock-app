@@ -4,6 +4,8 @@
  * demo users out everywhere, which also gives e2e tests a clean slate.
  *
  * Run with: npm run db:seed
+ * On Vercel the build runs it with --if-enabled, which only seeds when
+ * SEED_DEMO_ACCOUNTS=true (demo/assessment deployments).
  */
 import { eq } from "drizzle-orm";
 import { closeDb, getDb } from "@/db";
@@ -12,8 +14,13 @@ import { hashSecret } from "@/server/auth/hashing";
 import { DEMO_USERS } from "@/lib/demo-users";
 
 async function main() {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Refusing to seed demo accounts in production.");
+  const enabled = process.env.SEED_DEMO_ACCOUNTS === "true";
+  if (process.argv.includes("--if-enabled") && !enabled) {
+    console.log("SEED_DEMO_ACCOUNTS is not true; skipping demo accounts.");
+    return;
+  }
+  if (process.env.NODE_ENV === "production" && !enabled) {
+    throw new Error("Refusing to seed demo accounts in production (set SEED_DEMO_ACCOUNTS=true for a demo deployment).");
   }
   const db = getDb();
 

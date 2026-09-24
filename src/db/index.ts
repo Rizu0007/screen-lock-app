@@ -10,7 +10,16 @@ export type Database = PostgresJsDatabase<typeof schema>;
 const globalForDb = globalThis as unknown as { __db?: Database; __sql?: postgres.Sql };
 
 function create(): Database {
-  const client = postgres(env().DATABASE_URL, { max: 10 });
+  const config = env();
+  const client = postgres(config.DATABASE_URL, {
+    // Serverless platforms run many small instances; each gets a small pool and
+    // the provider's pooler (e.g. Neon's "-pooler" host) fans them in.
+    max: config.DATABASE_POOL_MAX ?? (process.env.VERCEL ? 5 : 10),
+    idle_timeout: 20,
+    connect_timeout: 10,
+    // Transaction-mode poolers (PgBouncer) cannot keep named prepared statements.
+    prepare: false,
+  });
   globalForDb.__sql = client;
   return drizzle(client, { schema });
 }

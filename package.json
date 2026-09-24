@@ -11,10 +11,11 @@
     "db:up": "docker compose up -d --wait",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx --env-file=.env --conditions=react-server scripts/seed.ts",
+    "db:seed": "tsx --env-file-if-exists=.env --conditions=react-server scripts/seed.ts",
     "setup": "npm run db:up && npm run db:migrate && npm run db:seed",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "vercel-build": "drizzle-kit migrate && npm run db:seed -- --if-enabled && next build"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.1",
@@ -40,5 +41,8 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.1"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
