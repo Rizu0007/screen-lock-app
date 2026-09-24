@@ -4,7 +4,7 @@ import { Lock } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { lockAction } from "@/app/actions/lock";
 import { Button } from "@/components/ui/button";
-import { broadcastAuth, hardNavigate, loginPath } from "@/lib/auth-channel";
+import { broadcastAuthChange, hardNavigate, loginPath } from "@/lib/auth-channel";
 
 /** Ctrl+Shift+L on every platform (Cmd+Shift+L is taken by Safari's sidebar). */
 function isLockShortcut(event: KeyboardEvent) {
@@ -27,13 +27,8 @@ export function LockButton() {
     try {
       const { pathname, search, hash } = window.location;
       const result = await lockAction(`${pathname}${search}${hash}`);
-      if (result.ok) {
-        broadcastAuth({ type: "locked" });
-        hardNavigate("/lock");
-        return;
-      }
-      broadcastAuth({ type: "signed_out", reason: result.reason });
-      hardNavigate(loginPath(result.reason));
+      broadcastAuthChange();
+      hardNavigate(result.ok ? "/lock" : loginPath(result.reason));
     } catch {
       inFlight.current = false;
       setState("failed");

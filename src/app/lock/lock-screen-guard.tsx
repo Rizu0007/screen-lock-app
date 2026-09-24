@@ -1,37 +1,32 @@
 "use client";
 
 import { useEffect } from "react";
-import { hardNavigate, loginPath, safeReturnPath, subscribeAuth } from "@/lib/auth-channel";
-import { fetchSessionStatus } from "@/lib/session-status";
+import { broadcastAuthChange, enforceStatus, subscribeAuthChange } from "@/lib/auth-channel";
 
 /**
- * Keeps a lock screen in sync with the other tabs of the same session: if
- * another tab unlocks, follow it back into the app; if the session ends
- * elsewhere, go to the login page.
+ * Keeps a lock screen in sync with other tabs of the same session. When the
+ * session is no longer locked (unlocked or ended elsewhere) the page reloads
+ * and the server decides where it belongs.
  */
 export function LockScreenGuard() {
   useEffect(() => {
-    const unsubscribe = subscribeAuth((message) => {
-      if (message.type === "unlocked") hardNavigate(safeReturnPath(message.returnTo));
-      if (message.type === "signed_out") hardNavigate(loginPath(message.reason));
-    });
+    const recheck = () => enforceStatus("locked", () => window.location.reload());
 
-    const recheck = async () => {
-      if (document.visibilityState !== "visible") return;
-      const status = await fetchSessionStatus();
-      if (status === "active") hardNavigate("/dashboard");
-      if (status === "anonymous") hardNavigate(loginPath("session_expired"));
+    broadcastAuthChange();
+    const unsubscribe = subscribeAuthChange(recheck);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void recheck();
     };
-
     const onPageShow = (event: PageTransitionEvent) => {
       if (event.persisted) window.location.reload();
     };
 
-    document.addEventListener("visibilitychange", recheck);
+    document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onPageShow);
     return () => {
       unsubscribe();
-      document.removeEventListener("visibilitychange", recheck);
+      document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onPageShow);
     };
   }, []);

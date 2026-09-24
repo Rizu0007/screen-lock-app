@@ -1,5 +1,6 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { MAX_PIN_ATTEMPTS, pinSchema } from "@/lib/validation";
 import type { SignedOutReason } from "@/lib/login-reasons";
 import { recordAuthEvent } from "@/server/audit";
@@ -20,26 +21,29 @@ export async function lockAction(returnTo: string): Promise<LockResult> {
   if (state.status === "locked") return { ok: true };
 
   const { sessionId, userId } = state.session;
-  const locked = await lockSession(sessionId, returnTo);
-  if (!locked) return { ok: false, reason: "session_expired" };
-
-  await setSessionCookie(locked.token, locked.expiresAt);
+  await lockSession(sessionId, returnTo);
   await recordAuthEvent({ type: "screen_locked", userId, sessionId });
   return { ok: true };
 }
 
+/**
+ * Only non-terminal outcomes are returned to the form. Success and sign-out
+ * redirect on the server: an action that changes cookies makes Next re-render
+ * the current route, so a server redirect is the only navigation that cannot
+ * be overtaken by that re-render.
+ */
 export type UnlockState =
   | { status: "idle"; attemptsRemaining: number }
   | { status: "error"; message: string; attemptsRemaining: number }
-  | { status: "invalid"; message: string; attemptsRemaining: number }
-  | { status: "unlocked"; returnTo: string }
-  | { status: "signed_out"; reason: SignedOutReason };
+  | { status: "invalid"; message: string; attemptsRemaining: number };
+
+const loginPath = (reason: SignedOutReason) => `/login?reason=${reason}`;
 
 const attemptsMessage = (remaining: number) =>
   `Incorrect PIN. ${remaining} ${remaining === 1 ? "attempt" : "attempts"} remaining before you are signed out.`;
 
 export async function unlockAction(prev: UnlockState, formData: FormData): Promise<UnlockState> {
-  const remainingBefore = "attemptsRemaining" in prev ? prev.attemptsRemaining : MAX_PIN_ATTEMPTS;
+  const remainingBefore = prev.attemptsRemaining ?? MAX_PIN_ATTEMPTS;
 
   // Input validation does not consume an attempt: only a well-formed PIN that
   // fails verification counts as an unsuccessful attempt.
@@ -53,8 +57,8 @@ export async function unlockAction(prev: UnlockState, formData: FormData): Promi
   }
 
   const state = await getAuthState();
-  if (state.status === "anonymous") return { status: "signed_out", reason: "session_expired" };
-  if (state.status === "active") return { status: "unlocked", returnTo: "/dashboard" };
+  if (state.status === "anonymous") redirect(loginPath("session_expired"));
+  if (state.status === "active") redirect("/dashboard");
 
   const { sessionId, userId } = state.session;
   const result = await attemptUnlock(sessionId, userId, parsed.data);
@@ -63,7 +67,7 @@ export async function unlockAction(prev: UnlockState, formData: FormData): Promi
     case "unlocked":
       await setSessionCookie(result.token, result.expiresAt);
       await recordAuthEvent({ type: "unlock_success", userId, sessionId });
-      return { status: "unlocked", returnTo: result.returnTo };
+      redirect(result.returnTo);
 
     case "invalid":
       await recordAuthEvent({
@@ -81,14 +85,14 @@ export async function unlockAction(prev: UnlockState, formData: FormData): Promi
     case "locked_out":
       await clearSessionCookie();
       await recordAuthEvent({ type: "pin_lockout", userId, sessionId });
-      return { status: "signed_out", reason: "pin_lockout" };
+      redirect(loginPath("pin_lockout"));
 
     case "already_unlocked":
-      return { status: "unlocked", returnTo: "/dashboard" };
+      redirect("/dashboard");
 
     case "session_gone":
       await clearSessionCookie();
-      return { status: "signed_out", reason: "session_expired" };
+      redirect(loginPath("session_expired"));
 
     case "no_pin_configured":
       return {

@@ -5,6 +5,7 @@ import { DEMO_USERS } from "@/lib/demo-users";
 import { signedOutMessage } from "@/lib/login-reasons";
 import { getAuthState } from "@/server/dal";
 import { LoginForm } from "./login-form";
+import { SignedOutBeacon } from "./signed-out-beacon";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -24,6 +25,7 @@ export default async function LoginPage({
 
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-12">
+      <SignedOutBeacon />
       <div className="w-full max-w-sm space-y-4">
         <Card>
           <h1 className="text-xl font-semibold">Sign in</h1>

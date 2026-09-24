@@ -9,18 +9,17 @@ import { deleteAllUserSessions, rotateSessionToken } from "@/server/session/repo
 
 /**
  * Locks an active session. Idempotent: locking an already-locked session keeps
- * the original return path. Returns a fresh session token (rotated on lock).
+ * the original return path. The session token is NOT rotated here (it is on
+ * unlock): changing the cookie inside the lock action would make Next re-render
+ * and soft-navigate the current page, racing the client's hard navigation.
  */
 export async function lockSession(sessionId: string, requestedReturnTo: unknown) {
   const returnTo = returnToOrDefault(requestedReturnTo);
-  return getDb().transaction(async (tx) => {
-    await tx
-      .insert(screenLocks)
-      .values({ sessionId, returnTo })
-      .onConflictDoNothing({ target: screenLocks.sessionId });
-    const rotated = await rotateSessionToken(sessionId, tx);
-    return rotated ? { ...rotated, returnTo } : null;
-  });
+  await getDb()
+    .insert(screenLocks)
+    .values({ sessionId, returnTo })
+    .onConflictDoNothing({ target: screenLocks.sessionId });
+  return { returnTo };
 }
 
 export type UnlockResult =

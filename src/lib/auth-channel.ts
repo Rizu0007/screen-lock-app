@@ -1,32 +1,29 @@
 "use client";
 
-import { sanitizeReturnTo } from "@/lib/return-to";
 import type { SignedOutReason } from "@/lib/login-reasons";
+import { fetchSessionStatus, type SessionStatus } from "@/lib/session-status";
 
 /**
  * Cross-tab notifications (same browser, same origin). Tabs share the session
  * cookie, so when one tab locks, unlocks or signs out, the others must follow
  * immediately instead of continuing to display protected content.
- * The server remains the authority; these messages only trigger navigation.
+ *
+ * Messages carry no data: they only tell other tabs "the session changed,
+ * ask the server". The server stays the single source of truth.
  */
-export type AuthMessage =
-  | { type: "locked" }
-  | { type: "unlocked"; returnTo: string }
-  | { type: "signed_out"; reason: SignedOutReason };
-
 const CHANNEL = "screen-lock-auth";
 
-export function broadcastAuth(message: AuthMessage) {
+export function broadcastAuthChange() {
   if (typeof BroadcastChannel === "undefined") return;
   const channel = new BroadcastChannel(CHANNEL);
-  channel.postMessage(message);
+  channel.postMessage("changed");
   channel.close();
 }
 
-export function subscribeAuth(handler: (message: AuthMessage) => void): () => void {
+export function subscribeAuthChange(handler: () => void): () => void {
   if (typeof BroadcastChannel === "undefined") return () => {};
   const channel = new BroadcastChannel(CHANNEL);
-  channel.onmessage = (event: MessageEvent<AuthMessage>) => handler(event.data);
+  channel.onmessage = () => handler();
   return () => channel.close();
 }
 
@@ -43,6 +40,11 @@ export function loginPath(reason: SignedOutReason) {
   return `/login?reason=${reason}`;
 }
 
-export function safeReturnPath(value: unknown) {
-  return sanitizeReturnTo(value) ?? "/dashboard";
+/**
+ * Re-checks the session with the server and leaves the current page if it no
+ * longer matches the state this page is allowed to show.
+ */
+export async function enforceStatus(allowed: SessionStatus, onMismatch: (status: SessionStatus) => void) {
+  const status = await fetchSessionStatus();
+  if (status && status !== allowed) onMismatch(status);
 }

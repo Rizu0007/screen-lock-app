@@ -72,10 +72,10 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
 
 /**
  * Ends the current session. Allowed from both the active and the locked
- * state ("Sign out" on the lock screen). Returns instead of redirecting so the
- * client can notify other tabs before navigating.
+ * state ("Sign out" on the lock screen). Other tabs are notified by the login
+ * page once it renders.
  */
-export async function logoutAction(): Promise<{ ok: true }> {
+export async function logoutAction(): Promise<never> {
   const state = await getAuthState();
   if (state.status !== "anonymous") {
     await deleteSession(state.session.sessionId);
@@ -86,5 +86,5 @@ export async function logoutAction(): Promise<{ ok: true }> {
     });
   }
   await clearSessionCookie();
-  return { ok: true };
+  redirect("/login?reason=signed_out");
 }

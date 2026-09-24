@@ -1,29 +1,25 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { useTransition } from "react";
+import { useFormStatus } from "react-dom";
 import { logoutAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
-import { broadcastAuth, hardNavigate, loginPath } from "@/lib/auth-channel";
 
-/** Sign out is a POST (Server Action), never a GET link that could be forged or prefetched. */
-export function SignOutButton() {
-  const [pending, startTransition] = useTransition();
-
+function SubmitButton({ variant, label }: { variant: "ghost" | "link"; label: string }) {
+  const { pending } = useFormStatus();
   return (
-    <Button
-      variant="ghost"
-      disabled={pending}
-      onClick={() =>
-        startTransition(async () => {
-          await logoutAction();
-          broadcastAuth({ type: "signed_out", reason: "signed_out" });
-          hardNavigate(loginPath("signed_out"));
-        })
-      }
-    >
-      <LogOut className="size-4" aria-hidden />
-      Sign out
+    <Button type="submit" variant={variant} disabled={pending} className={variant === "link" ? "h-auto" : undefined}>
+      {variant === "ghost" && <LogOut className="size-4" aria-hidden />}
+      {label}
     </Button>
+  );
+}
+
+/** Sign out is a POST form (Server Action), never a GET link that could be forged or prefetched. */
+export function SignOutButton({ variant = "ghost", label = "Sign out" }: { variant?: "ghost" | "link"; label?: string }) {
+  return (
+    <form action={logoutAction} className="inline">
+      <SubmitButton variant={variant} label={label} />
+    </form>
   );
 }

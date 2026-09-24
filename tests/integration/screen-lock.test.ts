@@ -29,8 +29,8 @@ async function createUser() {
 
 async function lockedSession(userId: string, returnTo = "/projects?page=2#x") {
   const session = await createSession(userId);
-  const locked = await lockSession(session.sessionId, returnTo);
-  return { ...session, token: locked!.token };
+  await lockSession(session.sessionId, returnTo);
+  return session;
 }
 
 async function sessionCount(userId: string) {
@@ -62,24 +62,24 @@ describe("lock / unlock", () => {
     userId = await createUser();
   });
 
-  it("locking rotates the token and records the return path", async () => {
+  it("locking keeps the session and records the return path", async () => {
     const session = await createSession(userId);
-    const locked = await lockSession(session.sessionId, "/projects?page=3#top");
-    expect(locked!.token).not.toBe(session.token);
-    expect(await findSessionByToken(session.token)).toBeNull();
-    const current = await findSessionByToken(locked!.token);
+    await lockSession(session.sessionId, "/projects?page=3#top");
+    await lockSession(session.sessionId, "/settings"); // idempotent: first path wins
+    const current = await findSessionByToken(session.token);
     expect(current?.lock?.returnTo).toBe("/projects?page=3#top");
   });
 
   it("stores a safe default when the return path is malicious", async () => {
     const session = await createSession(userId);
     const locked = await lockSession(session.sessionId, "//evil.com");
-    expect(locked!.returnTo).toBe("/dashboard");
+    expect(locked.returnTo).toBe("/dashboard");
   });
 
-  it("correct PIN unlocks, returns to the saved page and keeps the same session", async () => {
+  it("correct PIN unlocks, returns to the saved page, keeps the session and rotates the token", async () => {
     const s = await lockedSession(userId);
     const result = await attemptUnlock(s.sessionId, userId, PIN);
+    expect(await findSessionByToken(s.token)).toBeNull(); // old cookie copy is dead
     expect(result).toMatchObject({ status: "unlocked", returnTo: "/projects?page=2#x" });
     const [lock] = await getDb().select().from(screenLocks).where(eq(screenLocks.sessionId, s.sessionId));
     expect(lock).toBeUndefined();
