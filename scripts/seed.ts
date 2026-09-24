@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { closeDb, getDb } from "@/db";
 import { loginAttempts, pinCredentials, sessions, users } from "@/db/schema";
 import { hashSecret } from "@/server/auth/hashing";
-import { DEMO_USERS } from "./demo-users";
+import { DEMO_USERS } from "@/lib/demo-users";
 
 async function main() {
   if (process.env.NODE_ENV === "production") {

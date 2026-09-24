@@ -27,7 +27,10 @@ export type UnlockResult =
   | { status: "unlocked"; returnTo: string; token: string; expiresAt: Date }
   | { status: "invalid"; attemptsRemaining: number }
   | { status: "locked_out" }
-  | { status: "not_locked" }
+  /** Unlocked concurrently (e.g. another tab); the session is still valid. */
+  | { status: "already_unlocked" }
+  /** Session expired or was destroyed concurrently (e.g. lockout in another tab). */
+  | { status: "session_gone" }
   | { status: "no_pin_configured" };
 
 /**
@@ -59,12 +62,14 @@ export async function attemptUnlock(
 
     // Re-check under the row lock: a concurrent request may have unlocked or
     // destroyed this session while we were waiting.
-    const [lock] = await tx
+    const [current] = await tx
       .select({ returnTo: screenLocks.returnTo })
-      .from(screenLocks)
-      .innerJoin(sessions, eq(sessions.id, screenLocks.sessionId))
-      .where(and(eq(screenLocks.sessionId, sessionId), gt(sessions.expiresAt, sql`now()`)));
-    if (!lock) return { status: "not_locked" };
+      .from(sessions)
+      .leftJoin(screenLocks, eq(screenLocks.sessionId, sessions.id))
+      .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, sql`now()`)));
+    if (!current) return { status: "session_gone" };
+    if (current.returnTo === null) return { status: "already_unlocked" };
+    const lock = { returnTo: current.returnTo };
 
     const valid = await verifySecret(credential.pinHash, pin);
 
@@ -75,7 +80,7 @@ export async function attemptUnlock(
         .where(eq(pinCredentials.userId, userId));
       await tx.delete(screenLocks).where(eq(screenLocks.sessionId, sessionId));
       const rotated = await rotateSessionToken(sessionId, tx);
-      if (!rotated) return { status: "not_locked" };
+      if (!rotated) return { status: "session_gone" };
       return { status: "unlocked", returnTo: returnToOrDefault(lock.returnTo), ...rotated };
     }
 
