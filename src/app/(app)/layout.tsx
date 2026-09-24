@@ -5,11 +5,7 @@ import { SessionGuard } from "@/components/session-guard";
 import { SignOutButton } from "@/components/sign-out-button";
 import { requireActiveSession } from "@/server/dal";
 
-/**
- * Shell for every authenticated page. The guard here covers the first render;
- * because layouts are not re-rendered on client navigation, each page (and
- * each Server Action / Route Handler) calls requireActiveSession() itself.
- */
+// Pages call requireActiveSession() too: layouts don't re-render on client navigation.
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await requireActiveSession();
 

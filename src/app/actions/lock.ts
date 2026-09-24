@@ -10,11 +10,7 @@ import { clearSessionCookie, setSessionCookie } from "@/server/session/cookie";
 
 export type LockResult = { ok: true } | { ok: false; reason: SignedOutReason };
 
-/**
- * Locks the current session. `returnTo` comes from the browser
- * (pathname + search + hash) and is validated server-side; an invalid value
- * falls back to the dashboard rather than failing the lock.
- */
+/** `returnTo` is sanitised server-side; invalid values fall back to /dashboard. */
 export async function lockAction(returnTo: string): Promise<LockResult> {
   const state = await getAuthState();
   if (state.status === "anonymous") return { ok: false, reason: "session_expired" };
@@ -26,12 +22,7 @@ export async function lockAction(returnTo: string): Promise<LockResult> {
   return { ok: true };
 }
 
-/**
- * Only non-terminal outcomes are returned to the form. Success and sign-out
- * redirect on the server: an action that changes cookies makes Next re-render
- * the current route, so a server redirect is the only navigation that cannot
- * be overtaken by that re-render.
- */
+// Success and sign-out redirect server-side: a cookie change re-renders the page and would race client navigation.
 export type UnlockState =
   | { status: "idle"; attemptsRemaining: number }
   | { status: "error"; message: string; attemptsRemaining: number }
@@ -45,8 +36,7 @@ const attemptsMessage = (remaining: number) =>
 export async function unlockAction(prev: UnlockState, formData: FormData): Promise<UnlockState> {
   const remainingBefore = prev.attemptsRemaining ?? MAX_PIN_ATTEMPTS;
 
-  // Input validation does not consume an attempt: only a well-formed PIN that
-  // fails verification counts as an unsuccessful attempt.
+  // Malformed input doesn't count as an attempt.
   const parsed = pinSchema.safeParse(formData.get("pin"));
   if (!parsed.success) {
     return {

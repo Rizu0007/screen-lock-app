@@ -15,7 +15,7 @@ function SubmitButton({ variant, label }: { variant: "ghost" | "link"; label: st
   );
 }
 
-/** Sign out is a POST form (Server Action), never a GET link that could be forged or prefetched. */
+/** POST form, not a GET link, so logout can't be forged or prefetched. */
 export function SignOutButton({ variant = "ghost", label = "Sign out" }: { variant?: "ghost" | "link"; label?: string }) {
   return (
     <form action={logoutAction} className="inline">

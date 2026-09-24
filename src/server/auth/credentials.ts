@@ -6,11 +6,7 @@ import { burnVerifyTime, verifySecret } from "@/server/auth/hashing";
 
 export type CredentialResult = { ok: true; userId: string } | { ok: false; userId: string | null };
 
-/**
- * Verifies email + password. Unknown emails still pay for a full Argon2
- * verification, so timing does not reveal which accounts exist. `userId` on
- * failure is for the audit log only and is never shown to the client.
- */
+/** Unknown emails still run a full Argon2 verify, so timing doesn't reveal accounts. */
 export async function verifyCredentials(email: string, password: string): Promise<CredentialResult> {
   const [user] = await getDb()
     .select({ id: users.id, passwordHash: users.passwordHash })

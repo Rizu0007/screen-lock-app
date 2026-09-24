@@ -186,6 +186,20 @@ test.describe("Bypass prevention", () => {
     expect(response?.headers()["cache-control"]).toContain("no-store");
   });
 
+  test("unknown pages keep the app shell, so Lock works there too", async ({ page, browser }) => {
+    await login(page);
+    await page.goto("/does-not-exist");
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await lock(page);
+    await submitPin(page, DEMO.pin);
+    await page.waitForURL("**/does-not-exist");
+
+    const anonymous = await browser.newPage();
+    await anonymous.goto("/does-not-exist");
+    await expect(anonymous).toHaveURL(/\/login/);
+    await anonymous.close();
+  });
+
   test("the lock screen redirects away once the session is unlocked", async ({ page }) => {
     await login(page);
     await page.goto("/lock");

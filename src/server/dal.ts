@@ -5,17 +5,8 @@ import { readSessionToken } from "@/server/session/cookie";
 import { findSessionByToken, type SessionRecord } from "@/server/session/repository";
 
 /**
- * Data Access Layer: the single authority for "who is this request and what
- * may it do". Every protected page, Server Action and Route Handler calls one
- * of the guards below. The proxy only performs an optimistic pre-check, and
- * layouts are not re-rendered on client navigation, so neither is relied on
- * for enforcement.
- *
- *   anonymous ──login──▶ active ──lock──▶ locked ──correct PIN──▶ active
- *                          │                 │
- *                        logout     3rd wrong PIN / sign out
- *                          ▼                 ▼
- *                      anonymous (session row deleted)
+ * The security boundary: every page, Server Action and Route Handler calls
+ * these guards. The proxy is only an optimistic pre-check.
  */
 export type AuthState =
   | { status: "anonymous"; hadCookie: boolean }
@@ -33,7 +24,6 @@ export const getAuthState = cache(async (): Promise<AuthState> => {
   return session.lock ? { status: "locked", session } : { status: "active", session };
 });
 
-/** For application pages and actions: requires an authenticated, unlocked session. */
 export async function requireActiveSession(): Promise<SessionRecord> {
   const state = await getAuthState();
   if (state.status === "anonymous") {
@@ -43,7 +33,6 @@ export async function requireActiveSession(): Promise<SessionRecord> {
   return state.session;
 }
 
-/** For the lock screen and unlock action: requires an authenticated, locked session. */
 export async function requireLockedSession(): Promise<SessionRecord> {
   const state = await getAuthState();
   if (state.status === "anonymous") {

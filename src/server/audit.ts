@@ -11,10 +11,7 @@ type EventInput = {
   detail?: string;
 };
 
-/**
- * Appends a security event. Audit failures are logged but never block the
- * user-facing flow (e.g. a lockout must still log the user out).
- */
+/** Never throws: an audit failure must not block the auth flow. */
 export async function recordAuthEvent(event: EventInput): Promise<void> {
   try {
     const ctx = await getRequestContext();

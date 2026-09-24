@@ -2,11 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3200;
 
-/**
- * End-to-end tests run against a production build (`next build && next start`),
- * so caching headers and cookie attributes match what users actually get.
- * Tests share the seeded demo accounts, hence a single worker.
- */
+// Runs against a production build; one worker because tests share the demo accounts.
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,

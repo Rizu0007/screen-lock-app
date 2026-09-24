@@ -4,15 +4,8 @@ import { useEffect } from "react";
 import { broadcastAuthChange, enforceStatus, hardNavigate, loginPath, subscribeAuthChange } from "@/lib/auth-channel";
 
 /**
- * Client-side companion to the server guards, mounted on every protected page.
- * It never grants access; it only removes already-rendered content from view
- * when the session changes underneath this tab:
- *  - another tab locked / signed out  -> BroadcastChannel hint, then re-check
- *  - locked from another device, or the session expired -> re-check on focus
- *  - page restored from the back/forward cache -> force a fresh server render
- *
- * Mounting also announces "active" to other tabs, so a tab sitting on the lock
- * screen follows as soon as this one is unlocked.
+ * Never grants access. Leaves protected pages when the session changes
+ * elsewhere: other tab (BroadcastChannel), focus re-check, bfcache restore.
  */
 export function SessionGuard() {
   useEffect(() => {

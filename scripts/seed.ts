@@ -1,12 +1,4 @@
-/**
- * Creates (or resets) the demo accounts with their pre-configured PINs.
- * Re-running restores known credentials, clears the PIN counter and signs the
- * demo users out everywhere, which also gives e2e tests a clean slate.
- *
- * Run with: npm run db:seed
- * On Vercel the build runs it with --if-enabled, which only seeds when
- * SEED_DEMO_ACCOUNTS=true (demo/assessment deployments).
- */
+/** Creates or resets the demo accounts. The Vercel build runs it with --if-enabled. */
 import { eq } from "drizzle-orm";
 import { closeDb, getDb } from "@/db";
 import { loginAttempts, pinCredentials, sessions, users } from "@/db/schema";
@@ -46,7 +38,7 @@ async function main() {
     console.log(`seeded ${demo.email}`);
   }
 
-  // Login throttle keys are hashed, so clear them all in dev.
+  // Throttle keys are hashed, so clear them all.
   await db.delete(loginAttempts);
 }
 

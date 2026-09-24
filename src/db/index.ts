@@ -7,18 +7,17 @@ import * as schema from "./schema";
 
 export type Database = PostgresJsDatabase<typeof schema>;
 
-// Reuse one pool across dev hot reloads instead of leaking a pool per reload.
+// One pool per process (survives dev hot reload).
 const globalForDb = globalThis as unknown as { __db?: Database; __sql?: postgres.Sql };
 
 function create(): Database {
   const config = env();
   const client = postgres(normalizeDatabaseUrl(config.DATABASE_URL), {
-    // Serverless platforms run many small instances; each gets a small pool and
-    // the provider's pooler (e.g. Neon's "-pooler" host) fans them in.
+    // Small pool per serverless instance; the provider's pooler fans in.
     max: config.DATABASE_POOL_MAX ?? (process.env.VERCEL ? 5 : 10),
     idle_timeout: 20,
     connect_timeout: 10,
-    // Transaction-mode poolers (PgBouncer) cannot keep named prepared statements.
+    // Required by transaction-mode poolers (PgBouncer).
     prepare: false,
   });
   globalForDb.__sql = client;
@@ -30,7 +29,7 @@ export function getDb(): Database {
   return globalForDb.__db;
 }
 
-/** Closes the pool; used by scripts and tests. */
+/** For scripts and tests. */
 export async function closeDb() {
   await globalForDb.__sql?.end();
   globalForDb.__db = undefined;

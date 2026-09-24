@@ -155,8 +155,8 @@ Cookie: `HttpOnly`, `SameSite=Lax`, and in production `Secure` + `__Host-` prefi
 ## Testing
 
 ```bash
-npm test            # 52 unit + integration tests on real Postgres (races, cascades, expiry)
-npm run test:e2e    # 17 Playwright tests on a production build
+npm test            # 53 unit + integration tests on real Postgres (races, cascades, expiry)
+npm run test:e2e    # 18 Playwright tests on a production build
 ```
 
 ---

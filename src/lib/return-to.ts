@@ -2,22 +2,13 @@ export const DEFAULT_AFTER_LOGIN = "/dashboard";
 
 const ORIGIN = "http://internal.invalid";
 
-/** Paths that must never be used as a "return to" destination. */
 const BLOCKED_PREFIXES = ["/lock", "/login", "/api", "/_next"];
 
-/**
- * Returns `value` only if it is a same-origin, in-app path; otherwise null.
- *
- * Defends against open redirects such as `//evil.com`, `/\evil.com`,
- * `/%5Cevil.com`, `/\t/evil.com` (browsers strip tab/CR/LF, turning it into
- * `//evil.com`), `javascript:` URLs and absolute URLs. Applied both when the
- * value is stored (on lock) and when it is used (on unlock).
- */
+/** Same-origin in-app path, or null. Rejects //, \, control characters and encoded variants. */
 export function sanitizeReturnTo(value: unknown): string | null {
   if (typeof value !== "string") return null;
   if (value.length === 0 || value.length > 2048) return null;
   if (!value.startsWith("/") || value.startsWith("//")) return null;
-  // Control characters, whitespace and backslashes have no business in our paths.
   if (/[\u0000-\u001f\u007f\s\\]/.test(value)) return null;
 
   let decoded: string;

@@ -1,10 +1,4 @@
-/**
- * postgres.js forwards unknown URL query parameters to the server as runtime
- * settings. Hosted providers (e.g. Neon) add libpq-only options such as
- * `channel_binding=require`, which the server then rejects with
- * `unrecognized configuration parameter`. Strip those before connecting.
- * `sslmode` is kept: postgres.js understands it.
- */
+// postgres.js sends unknown URL params to the server as settings; drop libpq-only ones (e.g. Neon's channel_binding).
 const LIBPQ_ONLY_PARAMS = ["channel_binding", "gssencmode", "sslcompression"];
 
 export function normalizeDatabaseUrl(raw: string): string {

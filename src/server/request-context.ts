@@ -3,11 +3,7 @@ import { headers } from "next/headers";
 
 export type RequestContext = { ip: string; userAgent: string | null };
 
-/**
- * Client metadata for audit logging and login throttling.
- * NOTE: x-forwarded-for is only trustworthy behind a proxy that overwrites it;
- * configure the deployment's reverse proxy accordingly.
- */
+/** Trusts x-forwarded-for: correct behind Vercel or a proxy that overwrites it. */
 export async function getRequestContext(): Promise<RequestContext> {
   const h = await headers();
   const forwarded = h.get("x-forwarded-for")?.split(",")[0]?.trim();

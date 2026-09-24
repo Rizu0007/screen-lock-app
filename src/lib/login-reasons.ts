@@ -1,8 +1,4 @@
-/**
- * Allow-list of `?reason=` codes shown on the login page. The query value is
- * only ever used as a lookup key; it is never rendered, so the URL cannot
- * inject text into the page.
- */
+/** Allow-listed ?reason= codes; the query value is only a lookup key, never rendered. */
 export const SIGNED_OUT_MESSAGES = {
   pin_lockout: "You were signed out after 3 incorrect PIN attempts. Sign in again to continue.",
   session_expired: "Your session has expired. Please sign in again.",

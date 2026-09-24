@@ -9,10 +9,7 @@ import { UnlockForm } from "./unlock-form";
 
 export const metadata: Metadata = { title: "Locked" };
 
-/**
- * Dedicated lock screen. Rendered only for a locked session; no application
- * data is fetched or sent to the browser while the session is locked.
- */
+/** Rendered only for a locked session; no app data is loaded. */
 export default async function LockPage() {
   const session = await requireLockedSession();
   const failed = await getFailedPinAttempts(session.userId);

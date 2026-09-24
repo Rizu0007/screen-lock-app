@@ -2,12 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { isProduction } from "@/server/env";
 
-/**
- * In production the `__Host-` prefix makes the browser enforce Secure, Path=/
- * and no Domain attribute, so the cookie cannot be set or shadowed by a
- * sibling subdomain. Plain http://localhost cannot use it (WebKit drops
- * Secure cookies over http), hence the dev name.
- */
+/** `__Host-` prefix in production (forces Secure, Path=/, no Domain). */
 export function sessionCookieName(): string {
   return isProduction() ? "__Host-session" : "session";
 }

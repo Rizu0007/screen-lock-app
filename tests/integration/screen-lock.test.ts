@@ -1,7 +1,4 @@
-/**
- * Integration tests against the real Postgres (docker compose). They exercise
- * the SQL itself (row locking, cascades, atomic counters), which mocks cannot.
- */
+// Runs against the real Postgres to exercise row locks, cascades and atomic counters.
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";

@@ -8,9 +8,6 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-/**
- * Identity: who the user is and how they sign in with full credentials.
- */
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
@@ -18,11 +15,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/**
- * Screen-lock credential, kept apart from the login password.
- * `failedAttempts` is tracked per USER (brief, Part B.1) so that several
- * locked sessions/devices share one budget of 3 consecutive attempts.
- */
+/** PIN hash + failed-attempt counter, per user (Part B.1). */
 export const pinCredentials = pgTable("pin_credentials", {
   userId: uuid("user_id")
     .primaryKey()
@@ -32,10 +25,7 @@ export const pinCredentials = pgTable("pin_credentials", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/**
- * Authenticated session. The cookie carries a random token; only its SHA-256
- * is stored, so a database leak does not leak usable session cookies.
- */
+/** Only the SHA-256 of the cookie token is stored. */
 export const sessions = pgTable(
   "sessions",
   {
@@ -50,11 +40,7 @@ export const sessions = pgTable(
   (t) => [index("sessions_user_id_idx").on(t.userId)],
 );
 
-/**
- * Screen-lock state, deliberately a separate table from `sessions`:
- * a row here means "this authenticated session is currently locked".
- * Deleting the session cascades the lock away with it.
- */
+/** A row means the session is locked. Kept separate from `sessions`. */
 export const screenLocks = pgTable("screen_locks", {
   sessionId: uuid("session_id")
     .primaryKey()
@@ -63,9 +49,7 @@ export const screenLocks = pgTable("screen_locks", {
   returnTo: text("return_to").notNull(),
 });
 
-/**
- * Fixed-window login throttle keyed by (email, client IP).
- */
+/** Login throttle per (email, IP). */
 export const loginAttempts = pgTable("login_attempts", {
   key: text("key").primaryKey(),
   count: integer("count").notNull().default(0),
@@ -84,9 +68,6 @@ export const AUTH_EVENT_TYPES = [
 ] as const;
 export type AuthEventType = (typeof AUTH_EVENT_TYPES)[number];
 
-/**
- * Append-only security audit trail.
- */
 export const authEvents = pgTable(
   "auth_events",
   {

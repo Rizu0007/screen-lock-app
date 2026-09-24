@@ -11,11 +11,7 @@ function isLockShortcut(event: KeyboardEvent) {
   return event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey && event.code === "KeyL";
 }
 
-/**
- * Locks the app from any page. The screen is covered immediately so nothing
- * stays readable while the request is in flight; if the server call fails the
- * cover is removed and an error is shown, never pretending the app is locked.
- */
+/** Covers the screen at once; on failure shows an error instead of pretending it's locked. */
 export function LockButton() {
   const [state, setState] = useState<"idle" | "locking" | "failed">("idle");
   const inFlight = useRef(false);

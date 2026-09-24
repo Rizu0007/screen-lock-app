@@ -12,11 +12,7 @@ export function loginThrottleKey(email: string, ip: string): string {
   return sha256(`${email.toLowerCase()}|${ip}`);
 }
 
-/**
- * Atomically records an attempt and reports whether it is allowed. Counting
- * happens BEFORE the password check, so parallel requests cannot slip past
- * the limit. A successful login clears the key.
- */
+/** Counted atomically before the password check, so parallel requests can't exceed the limit. */
 export async function consumeLoginAttempt(key: string) {
   const expired = sql`${loginAttempts.windowStart} < now() - make_interval(mins => ${LOGIN_WINDOW_MINUTES})`;
   const [row] = await getDb()

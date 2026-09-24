@@ -1,12 +1,7 @@
 import { PROJECTS } from "@/lib/projects";
 import { getAuthState } from "@/server/dal";
 
-/**
- * Example data API. Demonstrates that the lock is enforced at the data layer,
- * not just in the UI: a locked session receives 423 Locked and no data.
- *   401 {code: "UNAUTHENTICATED"} - no valid session
- *   423 {code: "SCREEN_LOCKED"}   - valid session, screen locked
- */
+/** Example data API: 401 when signed out, 423 when locked. */
 export async function GET() {
   const state = await getAuthState();
   const headers = { "Cache-Control": "no-store" };

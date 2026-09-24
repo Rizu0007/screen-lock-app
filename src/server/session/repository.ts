@@ -27,7 +27,6 @@ export async function createSession(userId: string, db: Executor = getDb()) {
   return { token, sessionId: row.id, expiresAt };
 }
 
-/** Resolves a cookie token to a live (non-expired) session plus its lock state. */
 export async function findSessionByToken(token: string): Promise<SessionRecord | null> {
   const [row] = await getDb()
     .select({
@@ -54,11 +53,7 @@ export async function findSessionByToken(token: string): Promise<SessionRecord |
   };
 }
 
-/**
- * Issues a new token for an existing session (same session id, same expiry).
- * Used on lock and unlock so any copy of the previous cookie stops working,
- * and so browsers evict back/forward-cached pages tied to the old cookie.
- */
+/** New token, same session. Used on unlock so earlier cookie copies stop working. */
 export async function rotateSessionToken(sessionId: string, db: Executor = getDb()) {
   const token = generateToken();
   const [row] = await db

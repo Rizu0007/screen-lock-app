@@ -7,12 +7,7 @@ import { returnToOrDefault } from "@/lib/return-to";
 import { verifySecret } from "@/server/auth/hashing";
 import { deleteAllUserSessions, rotateSessionToken } from "@/server/session/repository";
 
-/**
- * Locks an active session. Idempotent: locking an already-locked session keeps
- * the original return path. The session token is NOT rotated here (it is on
- * unlock): changing the cookie inside the lock action would make Next re-render
- * and soft-navigate the current page, racing the client's hard navigation.
- */
+// Idempotent. No token rotation here: a cookie change would re-render the page and race the client's hard navigation.
 export async function lockSession(sessionId: string, requestedReturnTo: unknown) {
   const returnTo = returnToOrDefault(requestedReturnTo);
   await getDb()
@@ -26,25 +21,13 @@ export type UnlockResult =
   | { status: "unlocked"; returnTo: string; token: string; expiresAt: Date }
   | { status: "invalid"; attemptsRemaining: number }
   | { status: "locked_out" }
-  /** Unlocked concurrently (e.g. another tab); the session is still valid. */
   | { status: "already_unlocked" }
-  /** Session expired or was destroyed concurrently (e.g. lockout in another tab). */
   | { status: "session_gone" }
   | { status: "no_pin_configured" };
 
 /**
- * Verifies a PIN for a locked session.
- *
- * Concurrency: the user's `pin_credentials` row is locked with SELECT ... FOR
- * UPDATE for the whole check-and-write, so parallel attempts (multiple tabs,
- * devices, or a scripted burst) are strictly serialised. A burst of N wrong
- * PINs therefore consumes exactly N attempts and can never exceed the limit,
- * and a correct PIN racing a wrong one cannot resurrect a deleted session.
- *
- * Counter semantics (per user, brief Part B):
- *  - wrong PIN   -> failed_attempts + 1
- *  - 3rd wrong   -> every session of the user is deleted, counter reset to 0
- *  - correct PIN -> counter reset to 0, lock removed, token rotated
+ * One transaction per attempt. FOR UPDATE on the user's PIN row serialises
+ * parallel attempts, so the 3-attempt limit cannot be exceeded.
  */
 export async function attemptUnlock(
   sessionId: string,
@@ -59,8 +42,7 @@ export async function attemptUnlock(
       .for("update");
     if (!credential) return { status: "no_pin_configured" };
 
-    // Re-check under the row lock: a concurrent request may have unlocked or
-    // destroyed this session while we were waiting.
+    // Re-check under the lock: another request may have unlocked or ended the session.
     const [current] = await tx
       .select({ returnTo: screenLocks.returnTo })
       .from(sessions)
@@ -109,7 +91,7 @@ export async function getFailedPinAttempts(userId: string): Promise<number> {
   return row?.failedAttempts ?? 0;
 }
 
-/** A successful full-credential login proves identity, so the PIN budget starts over. */
+/** Called after a successful password login. */
 export async function resetFailedPinAttempts(userId: string) {
   await getDb()
     .update(pinCredentials)

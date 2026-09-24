@@ -18,7 +18,6 @@ export function UnlockForm({ initialAttemptsRemaining }: { initialAttemptsRemain
   const [pin, setPin] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // After a rejected attempt, put the cursor back in the (already cleared) field.
   useEffect(() => {
     if (state.status !== "idle") inputRef.current?.focus();
   }, [state]);
@@ -34,8 +33,7 @@ export function UnlockForm({ initialAttemptsRemaining }: { initialAttemptsRemain
     <div className="mt-6">
       <form
         action={(formData) => {
-          // The submitted value is already in formData; clearing now means a
-          // wrong PIN leaves an empty field for the next attempt.
+          // Clear now; the value is already in formData.
           setPin("");
           formAction(formData);
         }}
@@ -45,11 +43,7 @@ export function UnlockForm({ initialAttemptsRemaining }: { initialAttemptsRemain
         <label htmlFor="pin" className="block text-sm font-medium">
           Enter your 6-digit PIN
         </label>
-        {/*
-          The single PIN field required by the brief. type="password" masks the
-          digits; inputMode="numeric" shows a number pad on mobile. The name is
-          not "password" to discourage password managers from saving it.
-        */}
+        {/* The single masked numeric PIN field (A3/A4). */}
         <Input
           ref={inputRef}
           id="pin"

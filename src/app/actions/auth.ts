@@ -70,11 +70,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   redirect("/dashboard");
 }
 
-/**
- * Ends the current session. Allowed from both the active and the locked
- * state ("Sign out" on the lock screen). Other tabs are notified by the login
- * page once it renders.
- */
+/** Works from both the active and the locked state. */
 export async function logoutAction(): Promise<never> {
   const state = await getAuthState();
   if (state.status !== "anonymous") {

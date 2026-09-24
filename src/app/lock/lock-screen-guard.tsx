@@ -3,11 +3,7 @@
 import { useEffect } from "react";
 import { broadcastAuthChange, enforceStatus, subscribeAuthChange } from "@/lib/auth-channel";
 
-/**
- * Keeps a lock screen in sync with other tabs of the same session. When the
- * session is no longer locked (unlocked or ended elsewhere) the page reloads
- * and the server decides where it belongs.
- */
+/** Reloads once the session is no longer locked; the server decides where to go. */
 export function LockScreenGuard() {
   useEffect(() => {
     const recheck = () => enforceStatus("locked", () => window.location.reload());
