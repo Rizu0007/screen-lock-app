@@ -6,6 +6,8 @@ The lock is enforced **on the server**, so refresh, the back button, a typed URL
 
 **Stack:** Next.js 16 · React 19 · TypeScript · Tailwind 4 · PostgreSQL 17 · Drizzle ORM · Argon2id · Zod · Vitest · Playwright
 
+![Screen lock architecture](docs/architecture.svg)
+
 ## Contents
 
 - [Quick start](#quick-start)
@@ -60,8 +62,6 @@ npm run dev              # http://localhost:3000
 ---
 
 ## How it works
-
-![Screen lock architecture](docs/architecture.svg)
 
 ```
 anonymous ──login──▶ active ──lock──▶ locked ──correct PIN──▶ active
