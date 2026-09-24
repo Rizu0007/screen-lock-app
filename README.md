@@ -1,9 +1,5 @@
 # Screen Lock & Session Management
-
 A Next.js 16 app where a signed-in user can lock the screen from any page and unlock it with a 6-digit PIN. Three wrong PINs sign the user out.
-
-The lock is enforced **on the server**, so refresh, the back button, a typed URL or a direct API call cannot bypass it.
-
 **Stack:** Next.js 16 · React 19 · TypeScript · Tailwind 4 · PostgreSQL 17 · Drizzle ORM · Argon2id · Zod · Vitest · Playwright
 
 ![Screen lock architecture](docs/architecture.svg)
